@@ -6,6 +6,7 @@ from openbabel import OBTypeTable
 
 import numpy as np
 import os
+import json
 import pybel
 import luigi
 import paths
@@ -61,6 +62,21 @@ def tokenize(residue, lig):
         return "{}_{}_{}".format(residue.get_resname(), l[0][2], l[1][2])
 
 
+def residueDistances2LigandAtoms(residue, lig):
+    """distances from the residue center to the ligand atoms
+    Keyword Arguments:
+    residue -- BioPython protein residue
+    lig     -- pybel lig with hydrogen removed
+    """
+    residue_center = residueCenter(residue)
+    dists = []
+    for atom in lig.atoms:
+        dist = euclidean(atom.coords, residue_center)
+        dists.append(dist)
+
+    return dists
+
+
 class BuildTokens(luigi.Task):
     myid = luigi.Parameter()
 
@@ -85,12 +101,48 @@ class BuildTokens(luigi.Task):
         return luigi.LocalTarget(ofn)
 
 
+class Distances(luigi.Task):
+    myid = luigi.Parameter()
+
+    def run(self):
+        mypath = paths.Paths07(self.myid)
+        lig_ifn = mypath.sdf
+        prt_ifn = mypath.pdb
+
+        lig = pybel.readfile("sdf", lig_ifn).next()
+        lig.removeh()
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure('prt', prt_ifn)
+
+        typetable = OBTypeTable()
+        typetable.SetFromType('INT')
+        typetable.SetToType('SYB')
+
+        dat = []
+        for residue in structure.get_residues():
+            dists = residueDistances2LigandAtoms(residue, lig)
+            atom_types = [typetable.Translate(atom.type) for atom in lig.atoms]
+            dat.append({"dists": dists,
+                        "atom_types": atom_types,
+                        "residue": residue.get_resname()})
+
+        to_write = json.dumps(dat, indent=4, separators=(',', ':'))
+        with self.output().open('w') as ofs:
+            ofs.write(to_write)
+
+    def output(self):
+        mypath = paths.Paths07(self.myid)
+        ofn = os.path.join(mypath.working,
+                           "{}.07.dists.json".format(self.myid))
+        return luigi.LocalTarget(ofn)
+
+
 def test():
-    luigi.build([BuildTokens("1ajx")], local_scheduler=True)
+    luigi.build([BuildTokens("1ajx"), Distances("1ajx")], local_scheduler=True)
 
 
 def main(myid):
-    luigi.build([BuildTokens(myid)], local_scheduler=True)
+    luigi.build([Distances(myid)], local_scheduler=True)
 
 
 if __name__ == '__main__':
