@@ -1,0 +1,10 @@
+* ReaDock
+
+** Distances profiling and Translating to tokens
+1. ./src/eda.py
+2. distribution of the ligand sizes in Angstrom
+   /ddnB/work/jaydy/working/pdbbind/lig_sizes_hist.tiff
+3. 10% quantile of distances is 13.08 Angstrom
+4. distribution of the residue-atom distances
+   /ddnB/work/jaydy/working/pdbbind/all_dists_hist.tiff
+5. *Use an unique ligand size for translating*
