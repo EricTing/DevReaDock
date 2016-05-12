@@ -9,13 +9,13 @@
    /ddnB/work/jaydy/working/pdbbind/all_dists_hist.tiff
 5. *Use an unique ligand size for translating*
 
-** Accuracy v.s. Binning size
+** RMSE v.s. Binning size
 1. ./src/eda.py
-2. Accuracy was measured on the test set
-| binning  size | accuracy |
-|---------------+----------|
-|           7.0 |     2.41 |
-|           6.0 |     2.34 |
-|           5.0 |     2.31 |
-|           4.0 |     2.38 |
-|           3.0 |     2.65 |
+2. RMSE was measured on the test set
+| binning  size | RMSE |
+|---------------+------|
+|           7.0 | 2.41 |
+|           6.0 | 2.34 |
+|           5.0 | 2.31 |
+|           4.0 | 2.38 |
+|           3.0 | 2.65 |
