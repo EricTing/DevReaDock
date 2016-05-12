@@ -147,7 +147,7 @@ class RF(luigi.Task):
     def requires(self):
         return Tokens(binning_size=self.binning_size)
 
-    def run(self):
+    def read(self):
         task = self.requires()
         if not task.complete():
             raise Exception("{} not completed".format(task))
@@ -157,43 +157,33 @@ class RF(luigi.Task):
         refined_df = pd.read_csv(refined_ifn, index_col=0)
         core_df = pd.read_csv(core_ifn, index_col=0)
 
+        return refined_df, core_df
+
+    def run(self):
+        refined_df, core_df = self.read()
+
         tokens = refined_df.tokens.map(lambda x: x.split()).values
         unique_tokens = set([t for l in tokens for t in l])
         print("{} unique tokens".format(len(unique_tokens)))
 
-        pipe_line = Pipeline(
-            [('tfidf', TfidfVectorizer(lowercase=False,
-                                       token_pattern=r'(?u)\b\S+\b',
-                                       analyzer='word')),
-             ('model', RandomForestRegressor(n_estimators=50))])
+        print("BinningSize MaxDf MinDf RMSE")
+        for max_df in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            for min_df in [0.0, 0.1, 0.2]:
+                pipe_line = Pipeline([
+                    ('tfidf', TfidfVectorizer(max_df=max_df,
+                                              min_df=min_df,
+                                              lowercase=False,
+                                              token_pattern=r'(?u)\b\S+\b',
+                                              analyzer='word')
+                     ), ('model', RandomForestRegressor(n_estimators=50,
+                                                        n_jobs=16))
+                ])
 
-        grids = {'tfidf__min_df': [0.0], 'tfidf__max_df': [1.0]}
-
-        ki_scorer = make_scorer(mean_squared_error, greater_is_better=False)
-
-        grid_search = GridSearchCV(pipe_line,
-                                   grids,
-                                   scoring=ki_scorer,
-                                   n_jobs=16,
-                                   verbose=2,
-                                   cv=4)
-        grid_search.fit(refined_df['tokens'], refined_df['ki'])
-
-        print("Best score: %0.3f" % grid_search.best_score_)
-
-        print("Best parameters set:")
-        best_parameters = grid_search.best_estimator_.get_params()
-        for param_name in sorted(grids.keys()):
-            print("\t%s: %r" % (param_name, best_parameters[param_name]))
-
-        # predict
-        pipe_line = Pipeline([('tfidf', TfidfVectorizer(
-            max_df=1.0, min_df=0.1)), ('model', RandomForestRegressor(
-                n_estimators=50))])
-        pipe_line.fit(refined_df['tokens'], refined_df['ki'])
-        prediction = pipe_line.predict(core_df['tokens'])
-        score = mean_squared_error(core_df['ki'], prediction)
-        print("RMSE on the core set: {}".format(score))
+                pipe_line.fit(refined_df['tokens'], refined_df['ki'])
+                prediction = pipe_line.predict(core_df['tokens'])
+                score = mean_squared_error(core_df['ki'], prediction)
+                print("{} {} {} {}".format(self.binning_size, max_df, min_df,
+                                           score))
 
     def output(self):
         pass
@@ -202,8 +192,10 @@ class RF(luigi.Task):
 def main():
     luigi.build(
         [
-            RF(binning_size=7.0), RF(binning_size=6.0), RF(binning_size=5.0),
-            RF(binning_size=4.0), RF(binning_size=3.0)
+            RF(binning_size=8.0),
+            RF(binning_size=7.0),
+            RF(binning_size=6.0),
+            RF(binning_size=5.0),
         ],
         local_scheduler=True)
 
