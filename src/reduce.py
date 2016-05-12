@@ -18,6 +18,8 @@ class Dists(luigi.Task):
                 with task.output().open('r') as ifs:
                     dat = json.loads(ifs.read())
                     all_dat[myid] = dat
+            else:
+                print("{} distances profiling NOT DONE".format(myid))
 
         with self.output().open('w') as ofs:
             to_write = json.dumps(all_dat)
