@@ -127,4 +127,24 @@ CLOSED: [2016-05-26 Thu 12:40]
    |         5.0 |   1.0 |   0.2 |   2.88078865904 |
 
 
-** NEXT PDBBind 2014
+* TODO PDBBind 2015
+SCHEDULED: <2016-05-26 Thu>--<2016-05-27 Fri> 
+:LOGBOOK:
+CLOCK: [2016-05-26 Thu 15:40]
+CLOCK: [2016-05-26 Thu 14:49]--[2016-05-26 Thu 15:14] =>  0:25
+:END:
+
+** DONE Download the dataset
+CLOSED: [2016-05-26 Thu 15:40]
+
+** TODO ETL
+SCHEDULED: <2016-05-26 Thu>
+1. [X] binding affinity
+   1. [X] ./src/extract_affinity.py
+   2. [X] ./src/aff_2015.py
+2. [X] Build tokens
+   1. ./src/translate.py
+
+** NEXT Exploratory analysis
+
+
