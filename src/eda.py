@@ -8,6 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.grid_search import GridSearchCV
 from sklearn.metrics import make_scorer, mean_squared_error
+from scipy.stats import pearsonr
 
 import json
 import luigi
@@ -166,7 +167,7 @@ class RF(luigi.Task):
         unique_tokens = set([t for l in tokens for t in l])
         print("{} unique tokens".format(len(unique_tokens)))
 
-        print("BinningSize MaxDf MinDf RMSE")
+        print("BinningSize MaxDf MinDf RMSE Corr")
         for max_df in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
             for min_df in [0.0, 0.1, 0.2]:
                 pipe_line = Pipeline([
@@ -176,14 +177,15 @@ class RF(luigi.Task):
                                               token_pattern=r'(?u)\b\S+\b',
                                               analyzer='word')
                      ), ('model', RandomForestRegressor(n_estimators=50,
-                                                        n_jobs=16))
+                                                        n_jobs=4))
                 ])
 
                 pipe_line.fit(refined_df['tokens'], refined_df['ki'])
                 prediction = pipe_line.predict(core_df['tokens'])
                 score = mean_squared_error(core_df['ki'], prediction)
-                print("{} {} {} {}".format(self.binning_size, max_df, min_df,
-                                           score))
+                corr = pearsonr(core_df['ki'], prediction)[0]
+                print("{} {} {} {} {}".format(self.binning_size, max_df,
+                                              min_df, score, corr))
 
     def output(self):
         pass
@@ -192,10 +194,10 @@ class RF(luigi.Task):
 def main():
     luigi.build(
         [
-            RF(binning_size=8.0),
+            # RF(binning_size=8.0),
             RF(binning_size=7.0),
-            RF(binning_size=6.0),
-            RF(binning_size=5.0),
+            # RF(binning_size=6.0),
+            # RF(binning_size=5.0),
         ],
         local_scheduler=True)
 
