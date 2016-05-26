@@ -104,8 +104,11 @@ class BuildTokens(luigi.Task):
 class Distances(luigi.Task):
     myid = luigi.Parameter()
 
+    def getPath(self):
+        return paths.Paths07(self.myid)
+
     def run(self):
-        mypath = paths.Paths07(self.myid)
+        mypath = self.getPath()
         lig_ifn = mypath.sdf
         prt_ifn = mypath.pdb
 
@@ -131,18 +134,31 @@ class Distances(luigi.Task):
             ofs.write(to_write)
 
     def output(self):
-        mypath = paths.Paths07(self.myid)
+        mypath = self.getPath()
         ofn = os.path.join(mypath.working,
                            "{}.07.dists.json".format(self.myid))
         return luigi.LocalTarget(ofn)
 
 
+class Distances15(Distances):
+    def getPath(self):
+        return paths.Paths15(self.myid)
+
+    def output(self):
+        mypath = self.getPath()
+        ofn = os.path.join(mypath.working,
+                           "{}.15.dists.json".format(self.myid))
+        return luigi.LocalTarget(ofn)
+
+
 def test():
-    luigi.build([BuildTokens("1ajx"), Distances("1ajx")], local_scheduler=True)
+    luigi.build(
+        [BuildTokens("1ajx"), Distances("1ajx"), Distances15('1ajx')],
+        local_scheduler=True)
 
 
 def main(myid):
-    luigi.build([Distances(myid)], local_scheduler=True)
+    luigi.build([Distances(myid), Distances15(myid)], local_scheduler=True)
 
 
 if __name__ == '__main__':
