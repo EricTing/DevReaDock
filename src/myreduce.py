@@ -4,7 +4,7 @@ import luigi
 import json
 import pandas as pd
 from collections import defaultdict
-from translate import BuildTokens, Distances
+from translate import BuildTokens, Distances, Distances15
 from lists import REFINED_DIC
 
 
@@ -30,6 +30,28 @@ class Dists(luigi.Task):
         return luigi.LocalTarget(ofn)
 
 
+class Dists15(luigi.Task):
+    def run(self):
+        all_dat = {}
+        for line in file("../dat/PDBbind_refined15.txt"):
+            myid = line.rstrip()
+            task = Distances15(myid)
+            if task.complete():
+                with task.output().open('r') as ifs:
+                    dat = json.loads(ifs.read())
+                    all_dat[myid] = dat
+            else:
+                print("{} distances profiling NOT DONE".format(myid))
+
+        with self.output().open('w') as ofs:
+            to_write = json.dumps(all_dat)
+            ofs.write(to_write)
+
+    def output(self):
+        ofn = "/work/jaydy/working/PDBbind_refined15.json"
+        return luigi.LocalTarget(ofn)
+
+
 def refined_tokens():
     refined_ids = REFINED_DIC.keys()
 
@@ -48,7 +70,7 @@ def refined_tokens():
 
 
 def main():
-    luigi.build([Dists()], local_scheduler=True)
+    luigi.build([Dists(), Dists15()], local_scheduler=True)
 
 
 if __name__ == '__main__':

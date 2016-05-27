@@ -9,7 +9,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.grid_search import GridSearchCV
 from sklearn.metrics import make_scorer, mean_squared_error
 from scipy.stats import pearsonr
+from myreduce import Dists15
 
+import aff_2015
 import json
 import luigi
 import numpy as np
@@ -88,51 +90,83 @@ class Tokens(luigi.Task):
 
         return [luigi.LocalTarget(ofn) for ofn in ofns]
 
+    def getTokens(self, profiles):
+        df = pd.DataFrame(profiles)
+
+        lig_span = df.dists.map(lambda dists: max(dists) - min(dists)).mean()
+
+        tokens = []
+        for profile in profiles:
+            # ignore water molecule or residues too far from the ligand
+            if profile["residue"] == "HOH":
+                pass
+            elif min(profile["dists"]) > 13.08:
+                tokens.append(profile["residue"])
+            else:
+                ends = np.arange(13.08, 13.08 + lig_span, self.binning_size)
+                type_dists = sorted(
+                    zip(profile["atom_types"], profile["dists"]),
+                    key=lambda x: x[1])
+
+                token = profile["residue"]
+                for end in ends:
+                    my_type_dists = [
+                        t
+                        for t in type_dists
+                        if t[1] > end and t[1] < (end + self.binning_size)
+                    ]
+                    if len(my_type_dists) > 0:
+                        token = token + "-" + my_type_dists[0][0]
+                tokens.append(token)
+
+        return ' '.join(tokens)
+
     def run(self):
         ifn = "/work/jaydy/working/PDBbind_refined07-core07.distances.json"
         with open(ifn) as ifs:
             dat = json.loads(ifs.read())
 
-        def getTokens(profiles):
-            df = pd.DataFrame(profiles)
-
-            lig_span = df.dists.map(
-                lambda dists: max(dists) - min(dists)).mean()
-
-            tokens = []
-            for profile in profiles:
-                # ignore water molecule or residues too far from the ligand
-                if profile["residue"] == "HOH":
-                    pass
-                elif min(profile["dists"]) > 13.08:
-                    tokens.append(profile["residue"])
-                else:
-                    ends = np.arange(13.08, 13.08 + lig_span,
-                                     self.binning_size)
-                    type_dists = sorted(
-                        zip(profile["atom_types"], profile["dists"]),
-                        key=lambda x: x[1])
-
-                    token = profile["residue"]
-                    for end in ends:
-                        my_type_dists = [
-                            t
-                            for t in type_dists
-                            if t[1] > end and t[1] < (end + self.binning_size)
-                        ]
-                        if len(my_type_dists) > 0:
-                            token = token + "-" + my_type_dists[0][0]
-                    tokens.append(token)
-
-            return ' '.join(tokens)
-
-        tokens = [getTokens(p) for p in dat.values()]
+        tokens = [self.getTokens(p) for p in dat.values()]
         myid_tokens = dict(zip(dat.keys(), tokens))
 
         refined_dat = [(myid, myid_tokens[myid], REFINED_DIC[myid])
                        for myid in dat.keys() if myid in REFINED_DIC]
         core_dat = [(myid, myid_tokens[myid], CORE_DIC[myid])
                     for myid in dat.keys() if myid in CORE_DIC]
+
+        ofns = [output.path for output in self.output()]
+        cols = ['myid', 'tokens', 'ki']
+        pd.DataFrame(refined_dat, columns=cols).to_csv(ofns[0])
+        pd.DataFrame(core_dat, columns=cols).to_csv(ofns[1])
+
+
+class Tokens15(Tokens):
+    def output(self):
+        ofns = [
+            "/ddnB/work/jaydy/working/pdbbind/refined.15.{}.csv".format(
+                self.binning_size),
+            "/ddnB/work/jaydy/working/pdbbind/core.15.{}.csv".format(
+                self.binning_size)
+        ]
+
+        return [luigi.LocalTarget(ofn) for ofn in ofns]
+
+    def requires(self):
+        return Dists15()
+
+    def run(self):
+        ifn = self.requires().output().path
+
+        with open(ifn) as ifs:
+            dat = json.loads(ifs.read())
+
+        tokens = [self.getTokens(p) for p in dat.values()]
+        myid_tokens = dict(zip(dat.keys(), tokens))
+
+        refined_dat = [(myid, myid_tokens[myid], aff_2015.refined_dat[myid])
+                       for myid in dat.keys() if myid in aff_2015.refined_dat]
+        core_dat = [(myid, myid_tokens[myid], aff_2015.core_dat[myid])
+                    for myid in dat.keys() if myid in aff_2015.core_dat]
 
         ofns = [output.path for output in self.output()]
         cols = ['myid', 'tokens', 'ki']
@@ -160,9 +194,13 @@ class RF(luigi.Task):
 
         return refined_df, core_df
 
-    def run(self):
+    def split(self):
         refined_df, core_df = self.read()
+        refined_df = refined_df[~refined_df['myid'].isin(core_df['myid'])]
+        return refined_df, core_df
 
+    def run(self):
+        refined_df, core_df = self.split()
         tokens = refined_df.tokens.map(lambda x: x.split()).values
         unique_tokens = set([t for l in tokens for t in l])
         print("{} unique tokens".format(len(unique_tokens)))
@@ -177,7 +215,7 @@ class RF(luigi.Task):
                                               token_pattern=r'(?u)\b\S+\b',
                                               analyzer='word')
                      ), ('model', RandomForestRegressor(n_estimators=50,
-                                                        n_jobs=4))
+                                                        n_jobs=16))
                 ])
 
                 pipe_line.fit(refined_df['tokens'], refined_df['ki'])
@@ -191,13 +229,22 @@ class RF(luigi.Task):
         pass
 
 
+class RF15(RF):
+    def requires(self):
+        return Tokens15(binning_size=self.binning_size)
+
+
 def main():
     luigi.build(
         [
             # RF(binning_size=8.0),
-            RF(binning_size=7.0),
+            # RF(binning_size=7.0),
             # RF(binning_size=6.0),
             # RF(binning_size=5.0),
+            RF15(binning_size=8.0),
+            RF15(binning_size=7.0),
+            RF15(binning_size=6.0),
+            RF15(binning_size=5.0),
         ],
         local_scheduler=True)
 
