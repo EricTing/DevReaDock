@@ -229,9 +229,48 @@ class RF(luigi.Task):
         pass
 
 
+def readDfireScores():
+    """read the scores of Dfire on the PDBBind 2014 refined dataset
+    """
+    ifn = "../dat/pdbbind2014-dfire"
+    df = pd.read_csv(ifn, index_col=0)
+    return df
+
+
 class RF15(RF):
     def requires(self):
         return Tokens15(binning_size=self.binning_size)
+
+
+class RF15AgainstDfire(RF15):
+    def run(self):
+        refined_df, core_df = self.split()
+        dfire_df = readDfireScores()
+        merged = pd.merge(refined_df, dfire_df, left_on='myid', right_on='pdbid')
+        train = merged.sample(merged.shape[0]/2)
+        test = merged[~merged.myid.isin(train.myid)]
+
+        pipe_line = Pipeline([
+            ('tfidf', TfidfVectorizer(max_df=1.0,
+                                      min_df=0.0,
+                                      lowercase=False,
+                                      token_pattern=r'(?u)\b\S+\b',
+                                      analyzer='word')
+             ), ('model', RandomForestRegressor(n_estimators=50,
+                                                n_jobs=16))
+        ])
+
+
+        pipe_line.fit(train['tokens'], train['ki'])
+        prediction = pipe_line.predict(test['tokens'])
+        corr = pearsonr(test['ki'], prediction)
+
+        dfire_corr = pearsonr(test['ki'], test['dfire'])
+        uncorr_dfire_corr = pearsonr(test['ki'], test['uncor_dfire'])
+
+        print("rf correlation: {}".format(corr))
+        print("dfire correlation: {}".format(dfire_corr))
+        print("uncorrelated-dfire correlation: {}".format(uncorr_dfire_corr))
 
 
 def main():
@@ -241,10 +280,13 @@ def main():
             # RF(binning_size=7.0),
             # RF(binning_size=6.0),
             # RF(binning_size=5.0),
-            RF15(binning_size=8.0),
-            RF15(binning_size=7.0),
-            RF15(binning_size=6.0),
-            RF15(binning_size=5.0),
+
+            # RF15(binning_size=8.0),
+            # RF15(binning_size=7.0),
+            # RF15(binning_size=6.0),
+            # RF15(binning_size=5.0),
+
+            RF15AgainstDfire(binning_size=7.0),
         ],
         local_scheduler=True)
 
