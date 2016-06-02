@@ -38,3 +38,21 @@ class Paths15:
             os.makedirs(self.working)
         except:
             pass
+
+
+class Paths15Rnd:
+    def __init__(self, myid):
+        "paths for the data of PDBBind 2015 with ligands randomized by AutoDock Vina"
+        self.myid = myid
+        self.sdf = os.path.join(PDBBind_refined_15, self.myid,
+                                "{}_ligand-vina.mol2".format(self.myid))
+        self.pdb = os.path.join(PDBBind_refined_15, self.myid,
+                                "{}_protein.pdb".format(self.myid))
+
+        self.working = os.path.join(WORKING, "PDBBind_refined_15", self.myid)
+
+        try:
+            os.makedirs(self.working)
+        except:
+            pass
+

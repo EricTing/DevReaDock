@@ -85,7 +85,8 @@ class BuildTokens(luigi.Task):
         lig_ifn = mypath.sdf
         prt_ifn = mypath.pdb
 
-        lig = pybel.readfile("sdf", lig_ifn).next()
+        lig_ext = os.path.basename(lig_ifn).split('.')[-1]
+        lig = pybel.readfile(lig_ext, lig_ifn).next()
         lig.removeh()
         parser = PDBParser(QUIET=True)
         structure = parser.get_structure('prt', prt_ifn)
@@ -112,7 +113,8 @@ class Distances(luigi.Task):
         lig_ifn = mypath.sdf
         prt_ifn = mypath.pdb
 
-        lig = pybel.readfile("sdf", lig_ifn).next()
+        lig_ext = os.path.basename(lig_ifn).split('.')[-1]
+        lig = pybel.readfile(lig_ext, lig_ifn).next()
         lig.removeh()
         parser = PDBParser(QUIET=True)
         structure = parser.get_structure('prt', prt_ifn)
@@ -151,14 +153,27 @@ class Distances15(Distances):
         return luigi.LocalTarget(ofn)
 
 
+class Distances15Randomized(Distances15):
+    def getPath(self):
+        return paths.Paths15Rnd(self.myid)
+
+    def output(self):
+        mypath = self.getPath()
+        ofn = os.path.join(mypath.working,
+                           "{}.15.dists.rnd.json".format(self.myid))
+        return luigi.LocalTarget(ofn)
+
+
 def test():
+    myid = "1ajx"
     luigi.build(
-        [BuildTokens("1ajx"), Distances("1ajx"), Distances15('1ajx')],
+        [BuildTokens(myid), Distances(myid), Distances15(myid),
+         Distances15Randomized(myid)],
         local_scheduler=True)
 
 
 def main(myid):
-    luigi.build([Distances(myid), Distances15(myid)], local_scheduler=True)
+    luigi.build([Distances(myid), Distances15(myid), Distances15Randomized(myid)], local_scheduler=True)
 
 
 if __name__ == '__main__':
