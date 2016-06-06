@@ -3,6 +3,7 @@
 from Bio.PDB import PDBParser
 from scipy.spatial.distance import euclidean
 from openbabel import OBTypeTable
+from random import shuffle
 
 import numpy as np
 import os
@@ -153,6 +154,45 @@ class Distances15(Distances):
         return luigi.LocalTarget(ofn)
 
 
+class Distances15ShuffleLig(Distances15):
+    def getPath(self):
+        return paths.Paths15(self.myid)
+
+    def run(self):
+        mypath = self.getPath()
+        lig_ifn = mypath.sdf
+        prt_ifn = mypath.pdb
+
+        lig_ext = os.path.basename(lig_ifn).split('.')[-1]
+        lig = pybel.readfile(lig_ext, lig_ifn).next()
+        lig.removeh()
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure('prt', prt_ifn)
+
+        typetable = OBTypeTable()
+        typetable.SetFromType('INT')
+        typetable.SetToType('SYB')
+
+        dat = []
+        atom_types = [typetable.Translate(atom.type) for atom in lig.atoms]
+        atom_types = shuffle(atom_types)
+        for residue in structure.get_residues():
+            dists = residueDistances2LigandAtoms(residue, lig)
+            dat.append({"dists": dists,
+                        "atom_types": atom_types,
+                        "residue": residue.get_resname()})
+
+        to_write = json.dumps(dat, indent=4, separators=(',', ':'))
+        with self.output().open('w') as ofs:
+            ofs.write(to_write)
+
+    def output(self):
+        mypath = self.getPath()
+        ofn = os.path.join(mypath.working,
+                           "{}.15.dists.shuffledlig.json".format(self.myid))
+        return luigi.LocalTarget(ofn)
+
+
 class Distances15Randomized(Distances15):
     def getPath(self):
         return paths.Paths15Rnd(self.myid)
@@ -168,12 +208,15 @@ def test():
     myid = "1ajx"
     luigi.build(
         [BuildTokens(myid), Distances(myid), Distances15(myid),
-         Distances15Randomized(myid)],
+         Distances15ShuffleLig(myid), Distances15Randomized(myid)],
         local_scheduler=True)
 
 
 def main(myid):
-    luigi.build([Distances(myid), Distances15(myid), Distances15Randomized(myid)], local_scheduler=True)
+    luigi.build(
+        [Distances(myid), Distances15(myid), Distances15Randomized(myid),
+         Distances15ShuffleLig(myid)],
+        local_scheduler=True)
 
 
 if __name__ == '__main__':

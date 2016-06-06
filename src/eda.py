@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.grid_search import GridSearchCV
 from sklearn.metrics import make_scorer, mean_squared_error
 from scipy.stats import pearsonr
-from myreduce import Dists15
+from myreduce import Dists15, Dists15Randomized, Dists15ShuffleLig
 
 import aff_2015
 import json
@@ -174,6 +174,56 @@ class Tokens15(Tokens):
         pd.DataFrame(core_dat, columns=cols).to_csv(ofns[1])
 
 
+class Tokens15Randomized(Tokens):
+    def output(self):
+        ofns = [
+            "/ddnB/work/jaydy/working/pdbbind/refined.15.rnd.{}.ki.csv".format(
+                self.binning_size),
+            "/ddnB/work/jaydy/working/pdbbind/refined.15.rnd.{}.kd.csv".format(
+                self.binning_size),
+        ]
+        return [luigi.LocalTarget(ofn) for ofn in ofns]
+
+    def requires(self):
+        return Dists15Randomized()
+
+    def run(self):
+        ifn = self.requires().output().path
+
+        with open(ifn) as ifs:
+            dat = json.loads(ifs.read())
+
+        tokens = [self.getTokens(p) for p in dat.values()]
+        myid_tokens = dict(zip(dat.keys(), tokens))
+
+        kds = set(aff_2015.Kds)
+        kis = set(aff_2015.Kis)
+
+        kds_dat = [(myid, myid_tokens[myid], aff_2015.refined_dat[myid])
+                   for myid in dat.keys() if myid in kds]
+        kis_dat = [(myid, myid_tokens[myid], aff_2015.refined_dat[myid])
+                   for myid in dat.keys() if myid in kis]
+
+        ofns = [output.path for output in self.output()]
+        cols = ['myid', 'tokens', 'ki']
+        pd.DataFrame(kis_dat, columns=cols).to_csv(ofns[0])
+        pd.DataFrame(kds_dat, columns=cols).to_csv(ofns[1])
+
+
+class Tokens15ShuffleLig(Tokens):
+    def output(self):
+        ofns = [
+            "/ddnB/work/jaydy/working/pdbbind/refined.15.shuffled.{}.ki.csv".format(
+                self.binning_size),
+            "/ddnB/work/jaydy/working/pdbbind/refined.15.shuffled.{}.kd.csv".format(
+                self.binning_size),
+        ]
+        return [luigi.LocalTarget(ofn) for ofn in ofns]
+
+    def requires(self):
+        return Dists15ShuffleLig()
+
+
 class RF(luigi.Task):
     """try with the Random Forest algorithm
     """
@@ -246,8 +296,11 @@ class RF15AgainstDfire(RF15):
     def run(self):
         refined_df, core_df = self.split()
         dfire_df = readDfireScores()
-        merged = pd.merge(refined_df, dfire_df, left_on='myid', right_on='pdbid')
-        train = merged.sample(merged.shape[0]/2)
+        merged = pd.merge(refined_df,
+                          dfire_df,
+                          left_on='myid',
+                          right_on='pdbid')
+        train = merged.sample(merged.shape[0] / 2)
         test = merged[~merged.myid.isin(train.myid)]
 
         pipe_line = Pipeline([
@@ -259,7 +312,6 @@ class RF15AgainstDfire(RF15):
              ), ('model', RandomForestRegressor(n_estimators=50,
                                                 n_jobs=16))
         ])
-
 
         pipe_line.fit(train['tokens'], train['ki'])
         prediction = pipe_line.predict(test['tokens'])
@@ -285,8 +337,9 @@ def main():
             # RF15(binning_size=7.0),
             # RF15(binning_size=6.0),
             # RF15(binning_size=5.0),
-
-            RF15AgainstDfire(binning_size=7.0),
+            # RF15AgainstDfire(binning_size=7.0),
+            Tokens15Randomized(binning_size=7.0),
+            Tokens15ShuffleLig(binning_size=7.0),
         ],
         local_scheduler=True)
 
