@@ -351,6 +351,32 @@ class RF15AgainstDfire(RF15):
         train(kd_df, target='kd')
 
 
+class Test15Randomized(luigi.Task):
+    def requires(self):
+        return [Tokens15Randomized(binning_size=7.0),
+                RF15AgainstDfire(binning_size=7.0)]
+
+    def run(self):
+        tokens_task, model_task = self.requires()
+
+        ki_tokens_task, kd_tokens_task = tokens_task.output()
+        ki_model_task, kd_model_task = model_task.output()
+
+        ki_df = pd.read_csv(ki_tokens_task.path, index_col=0)
+        ki_model = joblib.load(ki_model_task.path)
+        ki_prediction = ki_model.predict(ki_df['tokens'])
+        ki_corr = pearsonr(ki_prediction, ki_df['ki'])
+        print("Ki randomized test:")
+        print(ki_corr)
+
+        kd_df = pd.read_csv(kd_tokens_task.path, index_col=0)
+        kd_model = joblib.load(kd_model_task.path)
+        kd_prediction = kd_model.predict(kd_df['tokens'])
+        kd_corr = pearsonr(kd_prediction, kd_df['ki'])
+        print("Kd randomized test:")
+        print(kd_corr)
+
+
 def main():
     luigi.build(
         [
@@ -363,9 +389,10 @@ def main():
             # RF15(binning_size=7.0),
             # RF15(binning_size=6.0),
             # RF15(binning_size=5.0),
-            RF15AgainstDfire(binning_size=7.0),
+            # RF15AgainstDfire(binning_size=7.0),
             # Tokens15Randomized(binning_size=7.0),
             # Tokens15ShuffleLig(binning_size=7.0),
+            # Test15Randomized(),
         ],
         local_scheduler=True)
 

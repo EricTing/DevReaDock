@@ -271,8 +271,37 @@ CLOSED: [2016-05-27 Fri 16:18]
 2. benchmarking
    1. ~RF15AgainstDfire(binning_size=7.0)~ in ./src/eda.py
 3. result
-   | scoring function |                  pcc |                 p-value |
-   |------------------+----------------------+-------------------------|
-   | rf               |  0.66263332385578178 | 3.2773440838904385e-195 |
-   | dfire            | -0.49000616926137919 |  9.4648679706962114e-94 |
-   | uncor_dfire      | -0.43312839721435237 |  2.1320436451361243e-71 |
+   1. Ki train and validation
+      | random-forest      |  0.67523960298559826 |
+      | dfire              | -0.52402241926721005 |
+      | uncorrelated-dfire | -0.44371365671346391 |
+   2. Kd train and validation
+      | random-forest      |  0.59781249988522656 |
+      | dfire              | -0.34837447757695483 |
+      | uncorrelated-dfire | -0.31679745342314997 |
+** Validate
+:LOGBOOK:
+CLOCK: [2016-06-05 Sun 18:04]
+CLOCK: [2016-06-05 Sun 11:42]--[2016-06-05 Sun 12:07] =>  0:25
+CLOCK: [2016-06-05 Sun 11:01]--[2016-06-05 Sun 11:26] =>  0:25
+:END:
+*** TODO Sensitiveness to the molecular weight
+SCHEDULED: <2016-06-02 Thu>
+Use the scoring function to predict on complexes with ligand atoms shuffled
+
+*** DONE Sensitiveness to the binding conformation
+CLOSED: [2016-06-11 Sat 19:59] SCHEDULED: <2016-06-02 Thu 22:25>
+:LOGBOOK:
+CLOCK: [2016-06-01 Wed 09:41]--[2016-06-01 Wed 10:06] =>  0:25
+:END:
+Use the scoring function to predict on complexes with ligand conformation
+randomized
+1. ~Test15Randomized~ in ./src/eda.py
+2. result
+   | type |            pearsonr |                 p-value |
+   |------+---------------------+-------------------------|
+   | Ki   | 0.58986545662223977 | 1.7151570744383636e-191 |
+   | Kd   | 0.48941169745648244 | 1.0508999271559536e-100 |
+
+** NEXT Run on Misagh's dataset
+1. [[file:/work/jaydy/dat/final-modeller-pdb-110k-cp][Data directory]]
