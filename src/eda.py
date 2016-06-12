@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.cross_validation import train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.externals import joblib
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 from myreduce import Dists15, Dists15Randomized, Dists15ShuffleLig
@@ -293,6 +294,11 @@ class RF15(RF):
 
 
 class RF15AgainstDfire(RF15):
+    def output(self):
+        ki_ofn = "/work/jaydy/working/pdbbind/PDBBind_refined_15/rf.ki.pkl"
+        kd_ofn = "/work/jaydy/working/pdbbind/PDBBind_refined_15/rf.kd.pkl"
+        return [luigi.LocalTarget(ki_ofn), luigi.LocalTarget(kd_ofn)]
+
     def run(self):
         refined_df, core_df = self.split()
         dfire_df = readDfireScores()
@@ -301,7 +307,7 @@ class RF15AgainstDfire(RF15):
                           left_on='myid',
                           right_on='pdbid')
 
-        def train(df):
+        def train(df, target='ki'):
             y = df['ki']
             columns = df.columns.tolist()
             columns.remove('ki')
@@ -321,6 +327,10 @@ class RF15AgainstDfire(RF15):
             ])
 
             pipe_line.fit(X_train['tokens'], y_train)
+            ofn = "/work/jaydy/working/pdbbind/PDBBind_refined_15/rf.{}.pkl".format(
+                target)
+            joblib.dump(pipe_line, ofn)
+
             prediction = pipe_line.predict(X_test['tokens'])
             corr = pearsonr(y_test, prediction)
 
@@ -334,11 +344,11 @@ class RF15AgainstDfire(RF15):
 
         print("Ki")
         ki_df = merged[merged['myid'].isin(aff_2015.Kis)]
-        train(ki_df)
+        train(ki_df, target='ki')
 
         print("Kd")
         kd_df = merged[merged['myid'].isin(aff_2015.Kds)]
-        train(kd_df)
+        train(kd_df, target='kd')
 
 
 def main():
