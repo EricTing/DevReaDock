@@ -5,9 +5,9 @@
 from lists import REFINED_DIC, CORE_DIC
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.cross_validation import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.grid_search import GridSearchCV
-from sklearn.metrics import make_scorer, mean_squared_error
+from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 from myreduce import Dists15, Dists15Randomized, Dists15ShuffleLig
 
@@ -300,29 +300,45 @@ class RF15AgainstDfire(RF15):
                           dfire_df,
                           left_on='myid',
                           right_on='pdbid')
-        train = merged.sample(merged.shape[0] / 2)
-        test = merged[~merged.myid.isin(train.myid)]
 
-        pipe_line = Pipeline([
-            ('tfidf', TfidfVectorizer(max_df=1.0,
-                                      min_df=0.0,
-                                      lowercase=False,
-                                      token_pattern=r'(?u)\b\S+\b',
-                                      analyzer='word')
-             ), ('model', RandomForestRegressor(n_estimators=50,
-                                                n_jobs=16))
-        ])
+        def train(df):
+            y = df['ki']
+            columns = df.columns.tolist()
+            columns.remove('ki')
+            X = df[columns]
 
-        pipe_line.fit(train['tokens'], train['ki'])
-        prediction = pipe_line.predict(test['tokens'])
-        corr = pearsonr(test['ki'], prediction)
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.5)
 
-        dfire_corr = pearsonr(test['ki'], test['dfire'])
-        uncorr_dfire_corr = pearsonr(test['ki'], test['uncor_dfire'])
+            pipe_line = Pipeline([
+                ('tfidf', TfidfVectorizer(max_df=1.0,
+                                          min_df=0.0,
+                                          lowercase=False,
+                                          token_pattern=r'(?u)\b\S+\b',
+                                          analyzer='word')
+                 ), ('model', RandomForestRegressor(n_estimators=50,
+                                                    n_jobs=1))
+            ])
 
-        print("rf correlation: {}".format(corr))
-        print("dfire correlation: {}".format(dfire_corr))
-        print("uncorrelated-dfire correlation: {}".format(uncorr_dfire_corr))
+            pipe_line.fit(X_train['tokens'], y_train)
+            prediction = pipe_line.predict(X_test['tokens'])
+            corr = pearsonr(y_test, prediction)
+
+            dfire_corr = pearsonr(y_test, X_test['dfire'])
+            uncorr_dfire_corr = pearsonr(y_test, X_test['uncor_dfire'])
+
+            print("rf correlation: {}".format(corr))
+            print("dfire correlation: {}".format(dfire_corr))
+            print("uncorrelated-dfire correlation: {}".format(
+                uncorr_dfire_corr))
+
+        print("Ki")
+        ki_df = merged[merged['myid'].isin(aff_2015.Kis)]
+        train(ki_df)
+
+        print("Kd")
+        kd_df = merged[merged['myid'].isin(aff_2015.Kds)]
+        train(kd_df)
 
 
 def main():
@@ -337,9 +353,9 @@ def main():
             # RF15(binning_size=7.0),
             # RF15(binning_size=6.0),
             # RF15(binning_size=5.0),
-            # RF15AgainstDfire(binning_size=7.0),
-            Tokens15Randomized(binning_size=7.0),
-            Tokens15ShuffleLig(binning_size=7.0),
+            RF15AgainstDfire(binning_size=7.0),
+            # Tokens15Randomized(binning_size=7.0),
+            # Tokens15ShuffleLig(binning_size=7.0),
         ],
         local_scheduler=True)
 
